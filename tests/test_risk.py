@@ -417,3 +417,8 @@ class TestMicroProfile:
         from src.config import load_settings
 
         assert load_settings("config/settings.micro.yaml").strategy.use_market_maker is False
+
+    def test_quiet_hours_disabled(self):
+        from src.config import load_settings
+
+        assert load_settings("config/settings.micro.yaml").strategy.quiet_hours_enabled is False

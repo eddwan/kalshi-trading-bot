@@ -122,7 +122,7 @@ strategy:
   btc_beta_enabled: true
   btc_beta_min_signal: 0.20
   # Quiet hours
-  quiet_hours_enabled: true
+  quiet_hours_enabled: false  # MICRO: trade all hours to gather data faster (live blocks worst-P&L hours)
   quiet_hours_est: [17, 18, 19, 20, 21, 0, 1, 2, 3]
   # Settlement ride
   settlement_ride_enabled: true
