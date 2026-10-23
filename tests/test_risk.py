@@ -383,3 +383,37 @@ class TestVolatilityTracker:
         tracker.update(0.003)
         stats = tracker.stats
         assert stats["observations"] == 2
+
+
+class TestSmallBankrollFloor:
+    def test_default_floor_blocks_entry_on_tiny_bankroll(self, sample_signal: TradeSignal):
+        """Default 10% floor: $0.53 contract is not < $0.30 on a $3 bankroll."""
+        sizer = PositionSizer(RiskConfig(min_position_size=1))
+        assert sizer.size(sample_signal, Decimal("3"), Decimal("0")) == 0
+
+    def test_raised_floor_allows_single_contract(self, sample_signal: TradeSignal):
+        """25% floor: $0.53 < $0.75 on a $3 bankroll, so 1 contract is allowed."""
+        sizer = PositionSizer(RiskConfig(min_position_size=1, small_bankroll_floor_pct=0.25))
+        assert sizer.size(sample_signal, Decimal("3"), Decimal("0")) == 1
+
+
+class TestMicroProfile:
+    @pytest.fixture
+    def micro_sizer(self) -> PositionSizer:
+        from src.config import load_settings
+
+        return PositionSizer(load_settings("config/settings.micro.yaml").risk)
+
+    def test_btc_sized_to_one_contract(
+        self, micro_sizer: PositionSizer, sample_signal: TradeSignal
+    ):
+        assert micro_sizer.size(sample_signal, Decimal("3"), Decimal("0")) == 1
+
+    def test_eth_blocked(self, micro_sizer: PositionSizer, sample_signal: TradeSignal):
+        eth_signal = sample_signal.model_copy(update={"market_ticker": "KXETH15M-TEST"})
+        assert micro_sizer.size(eth_signal, Decimal("3"), Decimal("0")) == 0
+
+    def test_market_maker_disabled(self):
+        from src.config import load_settings
+
+        assert load_settings("config/settings.micro.yaml").strategy.use_market_maker is False

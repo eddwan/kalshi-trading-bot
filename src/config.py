@@ -252,6 +252,8 @@ class RiskConfig(BaseModel):
     time_scale_full_seconds: float = 480.0  # Full size above this time remaining
     time_scale_min_multiplier: float = 0.4  # Minimum scaling at expiry
     min_position_size: int = 5  # Don't enter with fewer than this many contracts
+    # Small-bankroll floor: allow 1 contract when Kelly rounds to 0 and price < pct * balance
+    small_bankroll_floor_pct: float = 0.10
     # Directional high-price boost: size up directional at $0.50+ (92-99% WR zone)
     directional_high_price_boost: float = 1.0  # Disabled: kelly_fraction controls sizing
     directional_high_price_threshold: float = 0.50

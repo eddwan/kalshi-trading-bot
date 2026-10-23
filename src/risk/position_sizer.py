@@ -173,8 +173,9 @@ class PositionSizer:
         count = int(bet_dollars / price)
 
         # Small bankroll floor: if Kelly says to trade but count rounds to 0,
-        # use 1 contract when we can afford it (< 10% of bankroll)
-        if count <= 0 and kelly_f > 0 and price < float(balance_dollars) * 0.10:
+        # use 1 contract when we can afford it (< small_bankroll_floor_pct of bankroll)
+        floor_pct = self._config.small_bankroll_floor_pct
+        if count <= 0 and kelly_f > 0 and price < float(balance_dollars) * floor_pct:
             count = 1
 
         # Apply caps
