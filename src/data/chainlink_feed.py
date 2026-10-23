@@ -17,7 +17,7 @@ DEFAULT_CONTRACTS: dict[str, str] = {
     "ETH": "0x5f4eC3Df9cbd43714FE2740f5E3616155c5b8419",
 }
 
-DEFAULT_RPC_URL = "https://eth.llamarpc.com"
+DEFAULT_RPC_URL = "https://ethereum-rpc.publicnode.com"
 
 # Function selector for latestRoundData() = keccak256("latestRoundData()")[:4]
 LATEST_ROUND_DATA_SELECTOR = "0xfeaf968c"
