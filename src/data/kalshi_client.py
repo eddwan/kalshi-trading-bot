@@ -159,8 +159,10 @@ class KalshiRestClient:
         status: str | None = None,
         limit: int = 100,
         cursor: str | None = None,
+        min_close_ts: int | None = None,
+        max_close_ts: int | None = None,
     ) -> list[Market]:
-        """Get markets, optionally filtered by series and status."""
+        """Get markets, optionally filtered by series, status and close-time window."""
         params: dict[str, Any] = {"limit": str(limit)}
         if series_ticker:
             params["series_ticker"] = series_ticker
@@ -168,6 +170,10 @@ class KalshiRestClient:
             params["status"] = status
         if cursor:
             params["cursor"] = cursor
+        if min_close_ts is not None:
+            params["min_close_ts"] = str(min_close_ts)
+        if max_close_ts is not None:
+            params["max_close_ts"] = str(max_close_ts)
 
         data = await self._request("GET", "/markets", params=params)
         markets = []

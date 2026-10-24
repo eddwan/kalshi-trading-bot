@@ -46,7 +46,7 @@ strategy:
   stop_loss_pct: 0.20
   stop_loss_min_bid: 0.05
   stop_loss_min_hold_seconds: 60.0
-  stop_loss_max_dollar_loss: 0.30  # MICRO: max loss per stop-loss
+  stop_loss_max_dollar_loss: 0.75  # MICRO: worst-case loss of 1 contract (<= $0.75); 0.30 blocked every entry
   # FOMO — disabled
   fomo_enabled: false
   fomo_min_divergence: 0.20
@@ -76,7 +76,7 @@ strategy:
   thesis_break_min_hold_seconds: 120.0
   pre_expiry_exit_min_pnl_cents: -0.03
   # Entry filters
-  min_entry_price: 0.40
+  min_entry_price: 0.25  # MICRO: most model edges were at $0.25-0.40 (live: 0.40)
   asset_min_entry_price: {}
   yes_side_edge_multiplier: 1.4
   no_side_edge_multiplier: 1.5

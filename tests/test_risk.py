@@ -422,3 +422,20 @@ class TestMicroProfile:
         from src.config import load_settings
 
         assert load_settings("config/settings.micro.yaml").strategy.quiet_hours_enabled is False
+
+    @pytest.mark.parametrize(
+        ("price", "expected"),
+        [("0.26", 1), ("0.47", 1), ("0.74", 1), ("0.80", 0)],
+    )
+    def test_entry_window_with_strategy_caps(self, sample_signal: TradeSignal, price, expected):
+        """With dollar-loss cap applied, micro still sizes 1 contract for $0.25-0.75."""
+        from src.config import load_settings
+
+        settings = load_settings("config/settings.micro.yaml")
+        sizer = PositionSizer(settings.risk, strategy_config=settings.strategy)
+        signal = sample_signal.model_copy(update={
+            "suggested_price_dollars": price,
+            "implied_probability": float(price),
+            "model_probability": float(price) + 0.08,
+        })
+        assert sizer.size(signal, Decimal("3"), Decimal("0")) == expected

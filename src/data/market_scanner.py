@@ -60,19 +60,21 @@ class MarketScanner:
 
     async def scan(self) -> list[Market]:
         """Fetch open markets for the configured series and filter by time."""
+        now = datetime.now(timezone.utc)
         try:
-            # Query for active/open markets first (the default query returns
-            # newest-first which can be all "initialized" future markets).
+            # Query by close-time window instead of status="open": Kalshi's
+            # "open" filter has returned [] while markets were "active".
+            # Status is checked locally below.
+            now_ts = int(now.timestamp())
             markets = await self._client.get_markets(
                 series_ticker=self._config.series_ticker,
-                status="open",
-                limit=50,
+                limit=200,
+                min_close_ts=now_ts,
+                max_close_ts=now_ts + self.MAX_TIME_TO_EXPIRY_SECONDS,
             )
         except Exception:
             logger.exception("market_scan_error")
             return list(self._active_markets.values())
-
-        now = datetime.now(timezone.utc)
         active = []
 
         for market in markets:

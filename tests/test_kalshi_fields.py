@@ -166,3 +166,32 @@ class TestOrderRequest:
         ).to_api_dict()
         assert body["count"] == 1
         assert body["count_fp"] == "1.00"
+
+
+class TestMarketScanner:
+    async def test_scan_uses_close_window_and_keeps_active(self):
+        from datetime import timedelta
+
+        from src.config import KalshiConfig
+        from src.data.market_scanner import MarketScanner
+        from src.data.models import Market
+
+        now = datetime.now(timezone.utc)
+        active = Market(
+            ticker="KXBTC15M-NOW", status="active",
+            open_time=now - timedelta(minutes=5), close_time=now + timedelta(minutes=10),
+        )
+        future = Market(
+            ticker="KXBTC15M-NEXT", status="initialized",
+            open_time=now + timedelta(minutes=10), close_time=now + timedelta(minutes=25),
+        )
+        client = SimpleNamespace(get_markets=AsyncMock(return_value=[future, active]))
+        scanner = MarketScanner(client, KalshiConfig(series_ticker="KXBTC15M"))
+
+        found = await scanner.scan()
+
+        assert [m.ticker for m in found] == ["KXBTC15M-NOW"]
+        kwargs = client.get_markets.call_args.kwargs
+        assert "status" not in kwargs  # status="open" returned [] for active markets
+        assert kwargs["min_close_ts"] <= int(now.timestamp()) + 1
+        assert kwargs["max_close_ts"] > kwargs["min_close_ts"]
