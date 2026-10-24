@@ -439,3 +439,8 @@ class TestMicroProfile:
             "model_probability": float(price) + 0.08,
         })
         assert sizer.size(signal, Decimal("3"), Decimal("0")) == expected
+
+    def test_ppe_filter_disabled(self):
+        from src.config import load_settings
+
+        assert load_settings("config/settings.micro.yaml").strategy.ppe_filter_enabled is False
