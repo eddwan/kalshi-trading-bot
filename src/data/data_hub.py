@@ -8,11 +8,12 @@ from decimal import Decimal
 
 import structlog
 
-from src.config import AssetConfig, BotSettings, StrategyConfig
+from src.config import AssetConfig, StrategyConfig
 from src.data.binance_feed import BinanceFeed
 from src.data.binance_futures_feed import BinanceFuturesFeed
 from src.data.chainlink_feed import ChainlinkFeed
 from src.data.kalshi_client import KalshiRestClient
+from src.data.kalshi_fields import get_quantity, parse_orderbook_side
 from src.data.kalshi_ws import KalshiWebSocket
 from src.data.market_scanner import MarketScanner
 from src.data.models import MarketSnapshot, Orderbook, OrderbookLevel
@@ -158,44 +159,8 @@ class DataHub:
         self, ticker: str, payload: dict, now: datetime
     ) -> None:
         """Parse a full orderbook snapshot into the cache."""
-        yes_levels: list[OrderbookLevel] = []
-        no_levels: list[OrderbookLevel] = []
-
-        # Prefer dollar format, fall back to cents
-        for entry in payload.get("yes_dollars") or []:
-            if isinstance(entry, list) and len(entry) >= 2:
-                yes_levels.append(
-                    OrderbookLevel(
-                        price_dollars=Decimal(str(entry[0])),
-                        quantity=int(entry[1]),
-                    )
-                )
-        for entry in payload.get("no_dollars") or []:
-            if isinstance(entry, list) and len(entry) >= 2:
-                no_levels.append(
-                    OrderbookLevel(
-                        price_dollars=Decimal(str(entry[0])),
-                        quantity=int(entry[1]),
-                    )
-                )
-
-        if not yes_levels and not no_levels:
-            for entry in payload.get("yes") or []:
-                if isinstance(entry, list) and len(entry) >= 2:
-                    yes_levels.append(
-                        OrderbookLevel(
-                            price_dollars=Decimal(str(entry[0])) / 100,
-                            quantity=int(entry[1]),
-                        )
-                    )
-            for entry in payload.get("no") or []:
-                if isinstance(entry, list) and len(entry) >= 2:
-                    no_levels.append(
-                        OrderbookLevel(
-                            price_dollars=Decimal(str(entry[0])) / 100,
-                            quantity=int(entry[1]),
-                        )
-                    )
+        yes_levels = parse_orderbook_side(payload, "yes")
+        no_levels = parse_orderbook_side(payload, "no")
 
         self._orderbook_cache[ticker] = Orderbook(
             ticker=ticker,
@@ -217,7 +182,7 @@ class DataHub:
             return  # No snapshot yet — can't apply delta
 
         side = payload.get("side")  # "yes" or "no"
-        delta = payload.get("delta", 0)
+        delta = get_quantity(payload, "delta")
 
         # Parse price — prefer dollars, fall back to cents
         price_str = payload.get("price_dollars")
@@ -234,7 +199,8 @@ class DataHub:
         found = False
         for i, lvl in enumerate(levels):
             if lvl.price_dollars == price:
-                new_qty = lvl.quantity + delta
+                # Counts carry 2 decimals; round so float drift can't leave ghost levels
+                new_qty = round(lvl.quantity + delta, 2)
                 if new_qty > 0:
                     levels[i] = OrderbookLevel(
                         price_dollars=price, quantity=new_qty

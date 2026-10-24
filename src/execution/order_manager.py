@@ -11,6 +11,7 @@ import structlog
 
 from src.config import BotSettings
 from src.data.kalshi_client import KalshiAPIError, KalshiRestClient
+from src.data.kalshi_fields import get_count, get_dollars, get_order_count
 from src.data.models import OrderRequest, OrderResponse, TradeSignal
 
 logger = structlog.get_logger()
@@ -206,10 +207,10 @@ class OrderManager:
                         if od.get("client_order_id") == order_req.client_order_id:
                             oid = od["order_id"]
                             state.order_id = oid
-                            state.filled_count = od.get("fill_count", 0)
+                            state.filled_count = get_count(od, "fill_count")
                             state.status = (
                                 "filled"
-                                if od.get("remaining_count", 0) == 0
+                                if get_count(od, "remaining_count") == 0
                                 else "active"
                             )
                             self._pending_orders[oid] = state
@@ -258,11 +259,9 @@ class OrderManager:
             ticker = od.get("ticker", "")
             side = od.get("side", "yes")
             action = od.get("action", "buy")
-            yes_price = od.get("yes_price", 0)
-            no_price = od.get("no_price", 0)
-            price = yes_price if side == "yes" else no_price
-            # Kalshi returns prices in cents; convert to dollars
-            price_dollars = str(price / 100) if isinstance(price, (int, float)) and price > 1 else str(price)
+            # Prefer "*_price_dollars"; legacy "*_price" fields are in cents
+            price = get_dollars(od, "yes_price" if side == "yes" else "no_price")
+            price_dollars = str(price) if price is not None else "0"
 
             signal = TradeSignal(
                 market_ticker=ticker,
@@ -274,13 +273,13 @@ class OrderManager:
                 implied_probability=0.0,
                 confidence=0.0,
                 suggested_price_dollars=price_dollars,
-                suggested_count=od.get("count", 0),
+                suggested_count=get_order_count(od),
                 timestamp=datetime.now(timezone.utc),
                 signal_type="directional",
             )
 
-            req_count = od.get("count", 0)
-            fill_count = od.get("fill_count", 0)
+            req_count = get_order_count(od)
+            fill_count = get_count(od, "fill_count")
 
             state = OrderState(
                 order_id=oid,
@@ -435,8 +434,8 @@ class OrderManager:
                 continue
             try:
                 order_data = await self._client.get_order(order_id)
-                new_fill_count = order_data.get("fill_count", 0)
-                remaining = order_data.get("remaining_count", 0)
+                new_fill_count = get_count(order_data, "fill_count")
+                remaining = get_count(order_data, "remaining_count")
                 api_status = order_data.get("status", "")
 
                 if new_fill_count > state.filled_count:

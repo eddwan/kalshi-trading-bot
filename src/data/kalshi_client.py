@@ -12,10 +12,15 @@ import structlog
 
 from src.config import KalshiConfig
 from src.data.kalshi_auth import KalshiAuth
+from src.data.kalshi_fields import (
+    get_count,
+    get_dollars,
+    get_order_count,
+    parse_orderbook_side,
+)
 from src.data.models import (
     Market,
     Orderbook,
-    OrderbookLevel,
     OrderRequest,
     OrderResponse,
     Position,
@@ -178,53 +183,12 @@ class KalshiRestClient:
     async def get_orderbook(self, ticker: str) -> Orderbook:
         """Get orderbook for a market. Uses dollar-denominated fields."""
         data = await self._request("GET", f"/markets/{ticker}/orderbook")
-        ob = data.get("orderbook", data)
+        # Fixed-point API nests the book under "orderbook_fp"; legacy used "orderbook"
+        ob = data.get("orderbook_fp") or data.get("orderbook") or data
         now = datetime.now(timezone.utc)
 
-        yes_levels = []
-        no_levels = []
-
-        # Parse orderbook levels.
-        # API returns two formats:
-        #   - Dollar: "yes_dollars" / "no_dollars" as [[price_str, qty], ...]
-        #   - Cent: "yes" / "no" as [[price_cents, qty], ...]
-        # Note: API may return null instead of [] for empty sides.
-        for entry in ob.get("yes_dollars") or []:
-            if isinstance(entry, list) and len(entry) >= 2:
-                yes_levels.append(
-                    OrderbookLevel(
-                        price_dollars=Decimal(str(entry[0])),
-                        quantity=int(entry[1]),
-                    )
-                )
-
-        for entry in ob.get("no_dollars") or []:
-            if isinstance(entry, list) and len(entry) >= 2:
-                no_levels.append(
-                    OrderbookLevel(
-                        price_dollars=Decimal(str(entry[0])),
-                        quantity=int(entry[1]),
-                    )
-                )
-
-        # Fallback: parse cent-based fields
-        if not yes_levels and not no_levels:
-            for entry in ob.get("yes") or []:
-                if isinstance(entry, list) and len(entry) >= 2:
-                    yes_levels.append(
-                        OrderbookLevel(
-                            price_dollars=Decimal(str(entry[0])) / 100,
-                            quantity=int(entry[1]),
-                        )
-                    )
-            for entry in ob.get("no") or []:
-                if isinstance(entry, list) and len(entry) >= 2:
-                    no_levels.append(
-                        OrderbookLevel(
-                            price_dollars=Decimal(str(entry[0])) / 100,
-                            quantity=int(entry[1]),
-                        )
-                    )
+        yes_levels = parse_orderbook_side(ob, "yes")
+        no_levels = parse_orderbook_side(ob, "no")
 
         return Orderbook(
             ticker=ticker,
@@ -265,7 +229,7 @@ class KalshiRestClient:
                 "result": m.get("result", ""),
                 "open_time": m.get("open_time", ""),
                 "close_time": m.get("close_time", ""),
-                "volume": m.get("volume", 0),
+                "volume": get_count(m, "volume"),
             })
         return results
 
@@ -280,8 +244,8 @@ class KalshiRestClient:
     async def get_balance(self) -> Decimal:
         """Get account balance in dollars."""
         data = await self._request("GET", "/portfolio/balance")
-        balance = data.get("balance", 0)
-        return Decimal(str(balance)) / 100  # API returns cents
+        # Prefer "balance_dollars"; legacy "balance" is in cents
+        return get_dollars(data, "balance") or Decimal("0")
 
     async def create_order(self, order: OrderRequest) -> OrderResponse:
         """Place a new order."""
@@ -306,9 +270,9 @@ class KalshiRestClient:
                 if order_data.get("no_price_dollars")
                 else None
             ),
-            count=order_data.get("count", 0),
-            fill_count=order_data.get("fill_count", 0),
-            remaining_count=order_data.get("remaining_count", 0),
+            count=get_order_count(order_data),
+            fill_count=get_count(order_data, "fill_count"),
+            remaining_count=get_count(order_data, "remaining_count"),
             taker_fees_dollars=(
                 Decimal(str(order_data["taker_fees_dollars"]))
                 if order_data.get("taker_fees_dollars")
@@ -338,12 +302,14 @@ class KalshiRestClient:
             positions.append(
                 Position(
                     ticker=p.get("ticker", ""),
-                    position=p.get("position", 0),
-                    market_exposure=p.get("market_exposure", 0),
-                    resting_orders_count=p.get("resting_orders_count", 0),
-                    fees_paid=Decimal(str(p.get("fees_paid", 0))) / 100,
-                    total_traded=Decimal(str(p.get("total_traded", 0))) / 100,
-                    realized_pnl=Decimal(str(p.get("realized_pnl", 0))) / 100,
+                    position=get_count(p, "position"),
+                    market_exposure=int(
+                        (get_dollars(p, "market_exposure") or Decimal("0")) * 100
+                    ),
+                    resting_orders_count=get_count(p, "resting_orders_count"),
+                    fees_paid=get_dollars(p, "fees_paid") or Decimal("0"),
+                    total_traded=get_dollars(p, "total_traded") or Decimal("0"),
+                    realized_pnl=get_dollars(p, "realized_pnl") or Decimal("0"),
                 )
             )
         return positions
@@ -405,9 +371,9 @@ class KalshiRestClient:
             last_price=_parse_decimal(
                 m.get("last_price_dollars", m.get("last_price"))
             ),
-            volume=m.get("volume", 0),
-            volume_24h=m.get("volume_24h", 0),
-            open_interest=m.get("open_interest", 0),
+            volume=get_count(m, "volume"),
+            volume_24h=get_count(m, "volume_24h"),
+            open_interest=get_count(m, "open_interest"),
             open_time=_parse_dt(m.get("open_time")),
             close_time=_parse_dt(m.get("close_time")),
             expiration_time=_parse_dt(m.get("expiration_time")),

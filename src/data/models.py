@@ -22,7 +22,7 @@ class OrderbookLevel(BaseModel):
     """A single price level in a Kalshi orderbook."""
 
     price_dollars: Decimal
-    quantity: int
+    quantity: float  # Kalshi supports fractional contracts (count_fp)
 
 
 class Orderbook(BaseModel):
@@ -80,12 +80,12 @@ class Orderbook(BaseModel):
         return None
 
     @property
-    def yes_bid_depth(self) -> int:
+    def yes_bid_depth(self) -> float:
         """Total quantity on YES bid side."""
         return sum(level.quantity for level in self.yes_levels)
 
     @property
-    def no_bid_depth(self) -> int:
+    def no_bid_depth(self) -> float:
         """Total quantity on NO bid side."""
         return sum(level.quantity for level in self.no_levels)
 
@@ -135,6 +135,7 @@ class OrderRequest(BaseModel):
             "action": self.action,
             "type": self.type,
             "count": self.count,
+            "count_fp": f"{self.count}.00",  # Must match `count` when both are sent
             "client_order_id": self.client_order_id,
         }
         if self.yes_price_dollars is not None:
