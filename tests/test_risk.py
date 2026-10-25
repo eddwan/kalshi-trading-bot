@@ -487,3 +487,39 @@ class TestMicroProfile:
         signal = sample_signal.model_copy(update={"market_ticker": ticker})
         balance = Decimal(str(settings.risk.max_total_exposure_dollars * 2))
         assert sizer.size(signal, balance, Decimal("0")) == 1
+
+
+class TestPaperAggressiveProfile:
+    @pytest.fixture
+    def settings(self):
+        from src.config import load_settings
+
+        return load_settings("config/settings.paper_aggressive.yaml")
+
+    def test_entry_filters_loosened(self, settings):
+        st = settings.strategy
+        assert st.min_entry_price == 0.10
+        assert st.max_directional_price == 0.90
+        assert st.phase_filter_enabled is False
+        assert st.edge_confirmation_cycles == 1
+        assert not st.stop_loss_enabled  # still holds to settlement
+
+    def test_size_scales_with_edge_up_to_five(self, settings, sample_signal: TradeSignal):
+        sizer = PositionSizer(settings.risk, strategy_config=settings.strategy)
+        sizes = []
+        for edge in (0.03, 0.15):
+            signal = sample_signal.model_copy(update={
+                "market_ticker": "KXSOL15M-T",
+                "suggested_price_dollars": "0.30",
+                "implied_probability": 0.30,
+                "model_probability": 0.30 + edge,
+                "net_edge": edge,
+            })
+            sizes.append(sizer.size(signal, Decimal("30"), Decimal("0")))
+        assert sizes[0] < sizes[1] <= 5
+
+    def test_reentry_allowed(self, settings, sample_signal: TradeSignal):
+        """Holding 1 contract in a market still leaves room to add."""
+        sizer = PositionSizer(settings.risk, strategy_config=settings.strategy)
+        count = sizer.size(sample_signal, Decimal("30"), Decimal("0.5"), current_market_position=1)
+        assert count >= 1
