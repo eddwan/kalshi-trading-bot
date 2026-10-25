@@ -2,7 +2,8 @@
 # to settlement (no stop-loss, take-profit, pre-expiry or thesis-break exits),
 # like a human buying Up/Down on the Kalshi site and waiting.
 # Run:  .venv/bin/kalshi-bot -c config/settings.micro_hold.yaml --dry-run
-# Lines marked HOLD differ from settings.micro.yaml.
+# Lines marked HOLD differ from settings.micro.yaml. Risk limits are loosened
+# for PAPER data collection only — do not run this profile live.
 mode: live
 
 kalshi:
@@ -165,17 +166,17 @@ strategy:
 
 risk:
   max_position_per_market: 1  # MICRO: 1 contract per market
-  max_total_exposure_dollars: 1.50  # MICRO: 1 contract fits; paper balance = 2x = $3
-  max_daily_loss_dollars: 1.00  # MICRO: stop for the day after -$1
+  max_total_exposure_dollars: 15.0  # HOLD: paper balance = 2x = $30 so sizing doesn't shrink as losses accrue (still 1 contract)
+  max_daily_loss_dollars: 30.0  # HOLD: paper data collection: don't stop for the day
   max_concurrent_positions: 1  # MICRO: one position at a time
   kelly_fraction: 0.20                 # Conservative fractional Kelly
-  min_balance_dollars: 1.50  # MICRO: hard stop at 50% drawdown ($3 -> $1.50)
-  max_trades_per_day: 10  # MICRO: limit fee churn
-  cooldown_after_streak_minutes: 30
-  max_consecutive_losses: 3
+  min_balance_dollars: 0.0  # HOLD: paper data collection
+  max_trades_per_day: 200  # HOLD: paper data collection
+  cooldown_after_streak_minutes: 0  # HOLD: paper data collection
+  max_consecutive_losses: 1000  # HOLD: paper data collection: no streak cooldown
   # Drawdown circuit breaker
   drawdown_limit_enabled: true
-  drawdown_limit_dollars: 1.00  # MICRO: peak-to-trough daily limit
+  drawdown_limit_dollars: 30.0  # HOLD: paper data collection
   # Entry discipline
   entry_cooldown_seconds: 30
   max_contracts_per_cycle: 1  # MICRO: 1 contract per order

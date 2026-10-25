@@ -454,3 +454,23 @@ class TestMicroProfile:
             s.pre_expiry_exit_enabled, s.thesis_break_enabled,
         ])
         assert s.min_entry_price == 0.25  # entries identical to micro
+
+    @pytest.mark.parametrize(
+        ("price", "expected"),
+        [("0.26", 1), ("0.47", 1), ("0.74", 1), ("0.80", 0)],
+    )
+    def test_hold_profile_still_one_contract_on_paper_balance(
+        self, sample_signal: TradeSignal, price, expected
+    ):
+        """Hold profile's $30 paper balance must not change per-trade size."""
+        from src.config import load_settings
+
+        settings = load_settings("config/settings.micro_hold.yaml")
+        sizer = PositionSizer(settings.risk, strategy_config=settings.strategy)
+        signal = sample_signal.model_copy(update={
+            "suggested_price_dollars": price,
+            "implied_probability": float(price),
+            "model_probability": float(price) + 0.08,
+        })
+        balance = Decimal(str(settings.risk.max_total_exposure_dollars * 2))
+        assert sizer.size(signal, balance, Decimal("0")) == expected
