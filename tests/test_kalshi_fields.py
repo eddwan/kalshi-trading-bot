@@ -195,3 +195,15 @@ class TestMarketScanner:
         assert "status" not in kwargs  # status="open" returned [] for active markets
         assert kwargs["min_close_ts"] <= int(now.timestamp()) + 1
         assert kwargs["max_close_ts"] > kwargs["min_close_ts"]
+
+
+class TestDecisionLog:
+    def test_asset_decision_is_tagged(self):
+        from src.dashboard.server import DashboardState
+
+        ds = DashboardState()
+        ds.add_asset_decision("SOL", 7, "reject", "NO TRADE: entry price 0.10 < min 0.25")
+        entry = ds.recent_decisions[-1]
+        assert entry["summary"] == "[SOL] NO TRADE: entry price 0.10 < min 0.25"
+        assert entry["asset"] == "SOL"
+        assert entry["cycle"] == 7

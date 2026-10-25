@@ -410,7 +410,9 @@ class TradingBot:
         # Build snapshot
         snapshot = await self._data_hub.get_snapshot(ticker)
         if snapshot is None:
-            ds.add_decision(self._cycle_count, "no_market", f"No snapshot for {ticker}")
+            ds.add_asset_decision(
+                asset_symbol, self._cycle_count, "no_market", f"No snapshot for {ticker}"
+            )
             return
 
         ob = snapshot.orderbook
@@ -620,7 +622,7 @@ class TradingBot:
                         blocks=block_reasons,
                         phase=snapshot.window_phase,
                     )
-                ds.add_decision(self._cycle_count, "reject", reason)
+                ds.add_asset_decision(asset_symbol, self._cycle_count, "reject", reason)
                 return
 
         # Guard: don't buy opposite side when already holding a position
@@ -638,7 +640,7 @@ class TradingBot:
                     blocked_count=blocked,
                 )
             if not signals:
-                ds.add_decision(
+                ds.add_asset_decision(asset_symbol, 
                     self._cycle_count, "reject",
                     f"Opposite-side guard: holding {held_side.upper()}",
                 )
@@ -657,7 +659,9 @@ class TradingBot:
         if float(balance) < float(min_mm_balance):
             signals = [s for s in signals if s.signal_type != "market_making"]
             if not signals:
-                ds.add_decision(self._cycle_count, "reject", "Balance too low for market making")
+                ds.add_asset_decision(
+                    asset_symbol, self._cycle_count, "reject", "Balance too low for market making"
+                )
                 return
 
         # Entry cooldown: skip buy signals if we recently filled on this market
@@ -678,7 +682,7 @@ class TradingBot:
                     # Only keep sell signals (take-profit etc), skip buys
                     signals = [s for s in signals if s.action != "buy"]
                     if not signals:
-                        ds.add_decision(
+                        ds.add_asset_decision(asset_symbol, 
                             self._cycle_count, "reject",
                             f"Entry cooldown: {round(elapsed)}s / {cooldown}s",
                         )
@@ -698,7 +702,7 @@ class TradingBot:
         for signal_item in signals:
             # Per-cycle cap check
             if signal_item.action == "buy" and cycle_contracts_placed >= max_per_cycle:
-                ds.add_decision(
+                ds.add_asset_decision(asset_symbol, 
                     self._cycle_count, "reject",
                     f"Cycle cap reached: {cycle_contracts_placed}/{max_per_cycle}",
                 )
@@ -747,7 +751,7 @@ class TradingBot:
                     reason = f"MAX POSITION: {effective_position}/{max_pos} contracts in {signal_item.side.upper()}"
                 else:
                     reason = f"Size=0 for {signal_item.side} (pos={effective_position}, bal=${float(balance):.0f})"
-                ds.add_decision(self._cycle_count, "reject", reason)
+                ds.add_asset_decision(asset_symbol, self._cycle_count, "reject", reason)
                 continue
 
             ds.sizing = {"count": count, "side": signal_item.side, "price": signal_item.suggested_price_dollars}
@@ -780,7 +784,7 @@ class TradingBot:
                     ticker=ticker,
                     reason=decision.reason,
                 )
-                ds.add_decision(
+                ds.add_asset_decision(asset_symbol, 
                     self._cycle_count, "reject",
                     f"Risk rejected: {decision.reason}",
                 )
@@ -874,7 +878,7 @@ class TradingBot:
                         "price": signal_item.suggested_price_dollars,
                         "edge": signal_item.net_edge,
                     }
-                    ds.add_decision(
+                    ds.add_asset_decision(asset_symbol, 
                         self._cycle_count, "trade",
                         f"TRADE: buy {order_state.filled_count}x {signal_item.side.upper()} @ {signal_item.suggested_price_dollars}, edge={signal_item.net_edge:.4f}",
                     )
@@ -892,7 +896,7 @@ class TradingBot:
                         edge=signal_item.net_edge,
                         cycle=self._cycle_count,
                     )
-                    ds.add_decision(
+                    ds.add_asset_decision(asset_symbol, 
                         self._cycle_count, "trade",
                         f"RESTING: {final_count}x {signal_item.side.upper()} @ {signal_item.suggested_price_dollars}, edge={signal_item.net_edge:.4f}",
                     )

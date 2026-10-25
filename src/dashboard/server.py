@@ -50,7 +50,7 @@ class DashboardState:
         self.health: dict[str, Any] = {}
 
         # Ring buffer of last 50 cycle outcomes
-        self.recent_decisions: deque[dict[str, Any]] = deque(maxlen=50)
+        self.recent_decisions: deque[dict[str, Any]] = deque(maxlen=200)  # ~10 cycles x 4 assets
 
         # Per-asset trade history (last 5 results per asset)
         self.trade_history: dict[str, deque[dict[str, Any]]] = {}
@@ -155,6 +155,16 @@ class DashboardState:
                 "summary": summary,
             }
         )
+
+    def add_asset_decision(
+        self, asset: str, cycle: int, decision_type: str, summary: str
+    ) -> None:
+        """Like ``add_decision`` but tagged with the asset (e.g. "[SOL] ...").
+
+        With several assets evaluated per cycle, untagged rejects are ambiguous.
+        """
+        self.add_decision(cycle, decision_type, f"[{asset}] {summary}")
+        self.recent_decisions[-1]["asset"] = asset
 
     def to_json(self) -> str:
         """Serialize full state as JSON for SSE push."""
