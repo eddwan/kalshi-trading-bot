@@ -207,3 +207,14 @@ class TestDecisionLog:
         assert entry["summary"] == "[SOL] NO TRADE: entry price 0.10 < min 0.25"
         assert entry["asset"] == "SOL"
         assert entry["cycle"] == 7
+
+
+class TestMarketResult:
+    async def test_finalized_market_returns_result(self):
+        """Kalshi reports settled markets as "finalized"; result must still be read."""
+        client = _rest_client({"market": {"ticker": "T", "status": "finalized", "result": "no"}})
+        assert await client.get_market_result("T") == "no"
+
+    async def test_unsettled_market_returns_none(self):
+        client = _rest_client({"market": {"ticker": "T", "status": "active", "result": ""}})
+        assert await client.get_market_result("T") is None

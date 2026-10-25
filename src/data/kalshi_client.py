@@ -204,17 +204,17 @@ class KalshiRestClient:
         )
 
     async def get_market_result(self, ticker: str) -> str | None:
-        """Get the settlement result for a market ('yes', 'no', or None if not settled)."""
+        """Get the settlement result for a market ('yes', 'no', or None if not settled).
+
+        Reads the ``result`` field directly: Kalshi now reports settled markets
+        as "finalized" (not "settled"), so gating on status always returned None.
+        """
         try:
-            market = await self.get_market(ticker)
-            if market.status == "settled":
-                # The result is in the raw API data
-                data = await self._request("GET", f"/markets/{ticker}")
-                m = data.get("market", data)
-                return m.get("result", None)
+            data = await self._request("GET", f"/markets/{ticker}")
+            result = data.get("market", data).get("result")
+            return result if result in ("yes", "no") else None
         except Exception:
-            pass
-        return None
+            return None
 
     async def get_settled_markets(
         self, series_ticker: str, limit: int = 5

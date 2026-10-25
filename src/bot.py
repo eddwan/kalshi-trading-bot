@@ -23,6 +23,7 @@ from src.data.database import Database
 from src.data.kalshi_auth import KalshiAuth
 from src.data.kalshi_client import KalshiRestClient
 from src.data.kalshi_ws import KalshiWebSocket
+from src.data.models import MarketSnapshot
 from src.data.market_scanner import MarketScanner
 from src.execution.order_manager import OrderManager
 from src.execution.position_tracker import PositionTracker
@@ -48,6 +49,10 @@ class TradingBot:
     3. position_monitor_loop — check exits every 10s
     4. health_check_loop — log bot status every 60s
     """
+
+    # Paper mode: how long to wait for Kalshi's official result before
+    # falling back to spot vs strike
+    PAPER_SETTLE_WAIT_SECONDS = 300.0
 
     def __init__(self, settings: BotSettings):
         self._settings = settings
@@ -80,6 +85,8 @@ class TradingBot:
 
         # Background settlement polling tasks (non-blocking)
         self._pending_settlements: dict[str, asyncio.Task] = {}
+        # Paper settlements awaiting Kalshi's official result: ticker -> (first_seen, snapshot)
+        self._paper_settle_pending: dict[str, tuple[float, MarketSnapshot | None]] = {}
 
         # Data layer
         self._auth = KalshiAuth(
@@ -1095,14 +1102,29 @@ class TradingBot:
                                 continue  # Don't block — check on next iteration
                         else:
                             # Paper mode: simulate binary settlement
-                            # Primary: spot vs strike (actual settlement logic)
+                            # Primary: Kalshi's official result. Kalshi settles on the
+                            # CF Benchmarks index, which can differ from our exchange spot
+                            # on close calls, so wait up to PAPER_SETTLE_WAIT_SECONDS for it.
+                            # Fallback: spot vs strike captured at expiry, then implied prob.
                             # Use cached strike from position (survives market expiry)
-                            # Fallback: implied prob > 0.50 → YES wins
                             snap = snapshots.get(exit_ticker)
+                            if exit_ticker not in self._paper_settle_pending:
+                                self._paper_settle_pending[exit_ticker] = (
+                                    asyncio.get_running_loop().time(), snap,
+                                )
+                            first_seen, expiry_snap = self._paper_settle_pending[exit_ticker]
+                            official = await self._kalshi_rest.get_market_result(exit_ticker)
+                            waited = asyncio.get_running_loop().time() - first_seen
+                            if official is None and waited < self.PAPER_SETTLE_WAIT_SECONDS:
+                                continue  # Retry on next monitor iteration
+                            del self._paper_settle_pending[exit_ticker]
+                            snap = expiry_snap or snap
                             yes_wins: bool | None = None
                             strike = pos.strike_price
                             spot = snap.spot_price if snap else None
-                            if spot is not None and strike is not None:
+                            if official is not None:
+                                yes_wins = official == "yes"
+                            elif spot is not None and strike is not None:
                                 yes_wins = float(spot) >= float(strike)
                             elif snap and snap.implied_yes_prob is not None:
                                 yes_wins = float(snap.implied_yes_prob) > 0.50
@@ -1112,10 +1134,12 @@ class TradingBot:
                                 pnl = payout - cost - pos.fees_paid
                             else:
                                 pnl = -cost - pos.fees_paid  # Paper mode fallback
-                            settle_method = (
-                                "spot_vs_strike" if spot is not None and strike is not None
-                                else "implied_prob"
-                            )
+                            if official is not None:
+                                settle_method = "kalshi_result"
+                            elif spot is not None and strike is not None:
+                                settle_method = "spot_vs_strike"
+                            else:
+                                settle_method = "implied_prob"
                             logger.info(
                                 "position_settled_paper",
                                 ticker=exit_ticker,
