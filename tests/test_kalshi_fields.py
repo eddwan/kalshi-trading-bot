@@ -218,3 +218,33 @@ class TestMarketResult:
     async def test_unsettled_market_returns_none(self):
         client = _rest_client({"market": {"ticker": "T", "status": "active", "result": ""}})
         assert await client.get_market_result("T") is None
+
+
+class TestObserveMode:
+    def test_observe_profile_never_trades(self):
+        from src.config import load_settings
+
+        s = load_settings("config/settings.observe.yaml")
+        assert s.strategy.observe_only is True
+        assert {a.symbol for a in s.kalshi.assets} == {"BTC", "ETH", "SOL", "XRP"}
+
+    def test_raw_market_data_fields(self, sample_snapshot):
+        from src.bot import TradingBot
+
+        raw = TradingBot._raw_market_data(sample_snapshot)
+        assert set(raw) == {"spot", "spot2", "chainlink", "strike", "tte", "yes_bid", "no_bid", "fair"}
+        assert raw["spot"] == float(sample_snapshot.spot_price)
+        assert raw["tte"] == round(sample_snapshot.time_to_expiry_seconds, 1)
+
+    async def test_prediction_stores_market_data(self, tmp_path, sample_prediction):
+        import json
+
+        from src.data.database import Database
+
+        db = Database(str(tmp_path / "t.db"))
+        await db.connect()
+        await db.insert_prediction("T", sample_prediction, 0.5, 0.1, market_data={"spot": 1.0})
+        async with db._db.execute("select features_json from predictions") as cur:
+            (fj,) = await cur.fetchone()
+        await db.close()
+        assert json.loads(fj)["_market"] == {"spot": 1.0}

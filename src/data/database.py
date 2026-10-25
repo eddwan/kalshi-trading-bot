@@ -216,9 +216,17 @@ class Database:
         prediction: PredictionResult,
         implied_prob: float,
         edge: float,
+        market_data: dict | None = None,
     ) -> None:
-        """Insert a prediction record for analysis."""
+        """Insert a prediction record for analysis.
+
+        ``market_data`` (raw spot/strike/book values) is stored under the
+        ``_market`` key of ``features_json``.
+        """
         assert self._db is not None
+        features = dict(prediction.features_used)
+        if market_data:
+            features["_market"] = market_data
         await self._db.execute(
             """INSERT INTO predictions
             (market_ticker, model_probability, implied_probability, edge,
@@ -231,7 +239,7 @@ class Database:
                 edge,
                 prediction.confidence,
                 prediction.model_name,
-                json.dumps(prediction.features_used),
+                json.dumps(features),
                 datetime.now(timezone.utc).isoformat(),
             ),
         )

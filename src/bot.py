@@ -524,9 +524,16 @@ class TradingBot:
                 prediction=prediction,
                 implied_prob=implied,
                 edge=abs(prediction.probability_yes - implied),
+                market_data=self._raw_market_data(snapshot),
             )
         except Exception:
             pass  # Non-critical
+
+        if self._settings.strategy.observe_only:
+            ds.add_asset_decision(
+                asset_symbol, self._cycle_count, "reject", "Observe-only: logging, not trading"
+            )
+            return
 
         # Get current position for this market
         current_position = self._position_tracker.get_market_position_count(ticker)
@@ -907,6 +914,25 @@ class TradingBot:
                         self._cycle_count, "trade",
                         f"RESTING: {final_count}x {signal_item.side.upper()} @ {signal_item.suggested_price_dollars}, edge={signal_item.net_edge:.4f}",
                     )
+
+    @staticmethod
+    def _raw_market_data(snapshot: MarketSnapshot) -> dict:
+        """Raw per-cycle values for offline research (e.g. Kalshi vs spot lag)."""
+        ob = snapshot.orderbook
+
+        def num(v: object) -> float | None:
+            return float(v) if v is not None else None
+
+        return {
+            "spot": num(snapshot.spot_price),
+            "spot2": num(snapshot.secondary_spot_price),
+            "chainlink": num(snapshot.chainlink_oracle_price),
+            "strike": num(snapshot.strike_price),
+            "tte": round(snapshot.time_to_expiry_seconds, 1),
+            "yes_bid": num(ob.best_yes_bid) if ob else None,
+            "no_bid": num(ob.best_no_bid) if ob else None,
+            "fair": snapshot.statistical_fair_value,
+        }
 
     async def _market_scan_loop(self) -> None:
         """Scan for new markets, polling every 1s after a market expires.

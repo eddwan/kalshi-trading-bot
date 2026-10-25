@@ -70,6 +70,8 @@ class StrategyConfig(BaseModel):
     thin_book_edge_multiplier: float = 1.5  # Require 1.5x edge on thin orderbooks
     directional_enabled: bool = True
     use_market_maker: bool = True
+    # Observe-only: log predictions + raw market data every cycle, never place orders
+    observe_only: bool = False
     mm_min_spread: float = 0.05
     mm_max_spread: float = 0.30
     mm_max_inventory: int = 20  # Stop MM when holding this many contracts
