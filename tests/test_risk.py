@@ -444,3 +444,13 @@ class TestMicroProfile:
         from src.config import load_settings
 
         assert load_settings("config/settings.micro.yaml").strategy.ppe_filter_enabled is False
+
+    def test_hold_profile_disables_all_early_exits(self):
+        from src.config import load_settings
+
+        s = load_settings("config/settings.micro_hold.yaml").strategy
+        assert not any([
+            s.stop_loss_enabled, s.take_profit_enabled, s.trailing_take_profit_enabled,
+            s.pre_expiry_exit_enabled, s.thesis_break_enabled,
+        ])
+        assert s.min_entry_price == 0.25  # entries identical to micro
