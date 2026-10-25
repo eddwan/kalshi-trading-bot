@@ -26,6 +26,21 @@ kalshi:
       secondary_ws_url: "wss://ws.kraken.com/v2"
       secondary_symbol: "ETH/USD"
       chainlink_contract: "0x5f4eC3Df9cbd43714FE2740f5E3616155c5b8419"
+    # HOLD: SOL and XRP added for paper data collection
+    - series_ticker: "KXSOL15M"
+      symbol: "SOL"
+      primary_ws_url: "wss://ws-feed.exchange.coinbase.com"
+      primary_symbol: "SOL-USD"
+      secondary_ws_url: "wss://ws.kraken.com/v2"
+      secondary_symbol: "SOL/USD"
+      chainlink_contract: "0x4ffC43a60e009B551865A93d232E33Fce9f01507"  # SOL / USD (verified on-chain)
+    - series_ticker: "KXXRP15M"
+      symbol: "XRP"
+      primary_ws_url: "wss://ws-feed.exchange.coinbase.com"
+      primary_symbol: "XRP-USD"
+      secondary_ws_url: "wss://ws.kraken.com/v2"
+      secondary_symbol: "XRP/USD"
+      # No Chainlink XRP/USD feed on Ethereum mainnet
 
 binance:
   ws_url: "wss://ws-feed.exchange.coinbase.com"
@@ -168,7 +183,7 @@ risk:
   max_position_per_market: 1  # MICRO: 1 contract per market
   max_total_exposure_dollars: 15.0  # HOLD: paper balance = 2x = $30 so sizing doesn't shrink as losses accrue (still 1 contract)
   max_daily_loss_dollars: 30.0  # HOLD: paper data collection: don't stop for the day
-  max_concurrent_positions: 1  # MICRO: one position at a time
+  max_concurrent_positions: 4  # HOLD: one open position per asset
   kelly_fraction: 0.20                 # Conservative fractional Kelly
   min_balance_dollars: 0.0  # HOLD: paper data collection
   max_trades_per_day: 200  # HOLD: paper data collection
@@ -193,10 +208,8 @@ risk:
   small_bankroll_floor_pct: 0.25  # MICRO: 1-contract floor for prices < 25% of balance (< $0.75 at $3)
   min_position_size: 1  # MICRO: allow single-contract entries
   # Per-asset limits
-  asset_max_position:
-    ETH: 0  # MICRO: BTC only (ETH feed kept for cross-asset signal)
-  asset_max_per_cycle:
-    ETH: 0
+  asset_max_position: {}  # HOLD: trade BTC, ETH, SOL and XRP (micro blocks ETH)
+  asset_max_per_cycle: {}
 
 averaging:
   enabled: false
@@ -209,7 +222,7 @@ averaging:
 
 binance_futures:
   enabled: true
-  symbols: ["BTCUSDT", "ETHUSDT"]
+  symbols: ["BTCUSDT", "ETHUSDT", "SOLUSDT", "XRPUSDT"]  # HOLD: + SOL, XRP
   funding_poll_interval: 45.0
 
 features:

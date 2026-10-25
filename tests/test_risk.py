@@ -474,3 +474,16 @@ class TestMicroProfile:
         })
         balance = Decimal(str(settings.risk.max_total_exposure_dollars * 2))
         assert sizer.size(signal, balance, Decimal("0")) == expected
+
+    @pytest.mark.parametrize("ticker", ["KXBTC15M-T", "KXETH15M-T", "KXSOL15M-T", "KXXRP15M-T"])
+    def test_hold_profile_trades_all_assets(self, sample_signal: TradeSignal, ticker):
+        from src.config import load_settings
+
+        settings = load_settings("config/settings.micro_hold.yaml")
+        assert {a.series_ticker for a in settings.kalshi.assets} == {
+            "KXBTC15M", "KXETH15M", "KXSOL15M", "KXXRP15M",
+        }
+        sizer = PositionSizer(settings.risk, strategy_config=settings.strategy)
+        signal = sample_signal.model_copy(update={"market_ticker": ticker})
+        balance = Decimal(str(settings.risk.max_total_exposure_dollars * 2))
+        assert sizer.size(signal, balance, Decimal("0")) == 1
