@@ -234,7 +234,7 @@ class TradeSignal(BaseModel):
     signal_type: Literal[
         "directional", "market_making", "fomo",
         "averaging", "settlement_ride", "certainty_scalp",
-        "trend_continuation",
+        "trend_continuation", "fair_value",
     ] = "directional"
     entry_zone: int = 0  # Risk zone 1-5 (0 = unknown/MM)
     post_only: bool | None = None  # Override: True=maker, False=taker, None=default

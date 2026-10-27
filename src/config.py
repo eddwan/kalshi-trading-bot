@@ -72,6 +72,11 @@ class StrategyConfig(BaseModel):
     use_market_maker: bool = True
     # Observe-only: log predictions + raw market data every cycle, never place orders
     observe_only: bool = False
+    # Fair value vs ask (src/strategy/fair_value_detector.py): when exclusive, it replaces
+    # the SignalCombiner entirely (no heuristic-model trades)
+    fair_value_exclusive: bool = False
+    fair_value_min_gap: float = 0.05
+    fair_value_vol_window_s: float = 900.0
     mm_min_spread: float = 0.05
     mm_max_spread: float = 0.30
     mm_max_inventory: int = 20  # Stop MM when holding this many contracts

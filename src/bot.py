@@ -35,6 +35,7 @@ from src.risk.volatility import VolatilityTracker
 from src.dashboard.server import DashboardServer, DashboardState
 from src.strategy.averager import Averager
 from src.strategy.edge_detector import EdgeDetector
+from src.strategy.fair_value_detector import FairValueDetector
 from src.strategy.signal_combiner import SignalCombiner
 
 logger = structlog.get_logger()
@@ -220,6 +221,7 @@ class TradingBot:
             time_profiler=self._time_profiler,
             settlement_history=self._dashboard_state.settlement_history,
         )
+        self._fair_value_detector = FairValueDetector(settings.strategy)
 
         # Averaging
         self._averager: Averager | None = None
@@ -539,9 +541,18 @@ class TradingBot:
         current_position = self._position_tracker.get_market_position_count(ticker)
 
         # Generate signals
-        signals = self._signal_combiner.evaluate(
-            prediction, snapshot, current_position, features=features
-        )
+        if self._settings.strategy.fair_value_exclusive:
+            fv_signal = self._fair_value_detector.evaluate(asset_symbol, snapshot)
+            if fv_signal is None:
+                ds.add_asset_decision(
+                    asset_symbol, self._cycle_count, "reject", self._fair_value_detector.last_reason
+                )
+                return
+            signals = [fv_signal]
+        else:
+            signals = self._signal_combiner.evaluate(
+                prediction, snapshot, current_position, features=features
+            )
 
         # Update edge analysis from the internal edge detector
         edge_analysis = self._signal_combiner._edge_detector.last_analysis
@@ -853,7 +864,7 @@ class TradingBot:
                     buy_fee = EdgeDetector.compute_fee_dollars(
                         order_state.filled_count,
                         float(signal_item.suggested_price_dollars),
-                        is_maker=True,
+                        is_maker=signal_item.post_only is not False,  # taker if it crossed
                     )
                     self._total_fees += buy_fee
                     pos_after_fill = self._position_tracker.get_position(ticker)
