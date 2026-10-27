@@ -241,3 +241,6 @@ logging:
 
 database:
   path: data/bot.db
+
+dashboard:
+  port: 8090  # FV: 8080 is used by the hallentech website vite dev server
